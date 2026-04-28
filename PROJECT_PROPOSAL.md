@@ -71,11 +71,22 @@ The timeline editor UI is also a significant build — Remotion handles the rend
 
 **Demo:** "I upload my trip photos, pick a song, and see a basic slideshow with music playing in my browser. It's not beat-synced yet, but the foundation is live."
 
+**Status (end of Week 1):**
+- ✅ Next.js 16 (App Router, Turbopack) + Tailwind 4 scaffold, repo public at https://github.com/claudea24/montaj
+- ✅ Drag-and-drop and file-picker upload, with the Supabase Storage code path wired in `src/lib/media.ts` (falls back to in-browser blob URLs when env vars are unset)
+- ✅ Royalty-free music library (3 tracks: Coastline / Night Drive / Postcard), picker UI with inline `<audio>` preview
+- ✅ Remotion Player rendering a 1080×1920/30fps `SlideshowComposition` with photos at 1s each and the soundtrack mounted
+- ➕ **Beyond plan:** HEIC/HEIF photos accepted (converted to JPEG client-side via `heic-to` so Chrome can render them) and MOV/MP4/M4V clips accepted (duration probed from metadata, played full-length via `<OffthreadVideo>` in the slideshow)
+- ⏩ **Pulled forward from Week 2:** Ken Burns visual variety (4-variant motion cycle: zoom-in / zoom-out / pan-right / pan-left, applied to images only) and basic reordering UI (↑/↓/✕ buttons per timeline item with blob-URL cleanup on remove)
+- ⏸️ **Deferred:** Vercel deploy and live Supabase project provisioning. The upload code is storage-ready, but the project hasn't been created yet — planned alongside Clerk auth in Week 2.
+
 ### Week 2 — Beat sync + AI selection (~25-30 hours)
 - Beat detection in-browser (Web Audio API), auto-sync photo timing to beats
 - AI vision analyzes all uploads (beach, food, sunset, group shot), selects the best subset, and arranges them into a narrative arc
-- Visual variety: zoom in/out, pan effects so photos aren't static
-- Basic reordering UI (swap and move clips — doesn't need to be full drag-and-drop yet)
+- Visual variety: zoom in/out, pan effects so photos aren't static *(✅ shipped in Week 1)*
+- Basic reordering UI (swap and move clips — doesn't need to be full drag-and-drop yet) *(✅ shipped in Week 1)*
+
+**Revised Week 2 plan:** With the two visual/UX items already in, Week 2 focuses on (a) standing up Supabase + Clerk with per-user storage isolation so uploads persist, then (b) beat detection (Web Audio API onset analysis driving per-slot frame counts), and (c) AI vision selection via OpenAI gpt-4o-mini scoring + narrative ordering.
 
 **Demo:** "Photos now snap to the beat, AI picks and orders my best shots into a story, and each photo has a zoom or pan so it's not a static slideshow."
 
