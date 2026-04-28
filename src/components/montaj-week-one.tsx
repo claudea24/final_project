@@ -48,6 +48,28 @@ export function MontajWeekOne() {
 
   const videoCount = timeline.filter((item) => item.kind === "video").length;
 
+  function moveItem(index: number, delta: -1 | 1) {
+    setTimeline((current) => {
+      const target = index + delta;
+      if (target < 0 || target >= current.length) {
+        return current;
+      }
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  function removeItem(index: number) {
+    setTimeline((current) => {
+      const removed = current[index];
+      if (removed?.src.startsWith("blob:")) {
+        URL.revokeObjectURL(removed.src);
+      }
+      return current.filter((_, i) => i !== index);
+    });
+  }
+
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) {
       return;
@@ -295,7 +317,7 @@ export function MontajWeekOne() {
                       src={item.src}
                     />
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm">{item.name}</p>
                     <p className="text-xs text-[var(--muted)]">
                       Slot {index + 1} ·{" "}
@@ -305,6 +327,34 @@ export function MontajWeekOne() {
                       {formatBytes(item.size)}
                     </p>
                   </div>
+                  <div className="flex flex-col gap-1">
+                    <button
+                      aria-label="Move up"
+                      className="rounded-lg border border-[var(--line)] bg-white/80 px-2 py-0.5 text-xs disabled:opacity-30"
+                      disabled={index === 0}
+                      onClick={() => moveItem(index, -1)}
+                      type="button"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      aria-label="Move down"
+                      className="rounded-lg border border-[var(--line)] bg-white/80 px-2 py-0.5 text-xs disabled:opacity-30"
+                      disabled={index === timeline.length - 1}
+                      onClick={() => moveItem(index, 1)}
+                      type="button"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                  <button
+                    aria-label="Remove"
+                    className="rounded-lg border border-[var(--line)] bg-white/80 px-2 py-1 text-xs text-[var(--muted)] hover:text-red-600"
+                    onClick={() => removeItem(index)}
+                    type="button"
+                  >
+                    ✕
+                  </button>
                 </div>
               ))
             ) : (

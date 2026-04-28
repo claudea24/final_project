@@ -63,10 +63,6 @@ export function SlideshowComposition({
 
       {slots.map(({ item, index, startFrame, frames }) => {
         const progress = frame - startFrame;
-        const scale = interpolate(progress, [0, frames], [1, 1.08], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        });
         const opacity = interpolate(
           progress,
           [0, 8, frames - 8, frames],
@@ -76,6 +72,35 @@ export function SlideshowComposition({
             extrapolateRight: "clamp",
           },
         );
+
+        const isVideo = item.kind === "video";
+        const variant = index % 4;
+        const scaleStart = isVideo
+          ? 1
+          : variant === 0
+            ? 1.0
+            : variant === 1
+              ? 1.12
+              : 1.06;
+        const scaleEnd = isVideo
+          ? 1
+          : variant === 0
+            ? 1.12
+            : variant === 1
+              ? 1.0
+              : 1.06;
+        const xStart = isVideo ? 0 : variant === 2 ? -4 : variant === 3 ? 4 : 0;
+        const xEnd = isVideo ? 0 : variant === 2 ? 4 : variant === 3 ? -4 : 0;
+
+        const scale = interpolate(progress, [0, frames], [scaleStart, scaleEnd], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
+        const xPercent = interpolate(progress, [0, frames], [xStart, xEnd], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
+        const transform = `translate(${xPercent}%, 0) scale(${scale})`;
 
         return (
           <Sequence
@@ -98,7 +123,7 @@ export function SlideshowComposition({
                     width: "100%",
                     height: "100%",
                     objectFit: "cover",
-                    transform: `scale(${scale})`,
+                    transform,
                   }}
                 />
               ) : (
@@ -108,7 +133,7 @@ export function SlideshowComposition({
                     width: "100%",
                     height: "100%",
                     objectFit: "cover",
-                    transform: `scale(${scale})`,
+                    transform,
                   }}
                 />
               )}
