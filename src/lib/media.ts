@@ -1,10 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
+import { heicTo, isHeic } from "heic-to";
+
+export type TimelineMediaKind = "image" | "video";
 
 export type TimelineMedia = {
   id: string;
   name: string;
   size: number;
   src: string;
+  kind: TimelineMediaKind;
+  durationSeconds?: number;
 };
 
 export type MusicTrack = {
@@ -75,13 +80,88 @@ export function formatBytes(bytes: number) {
   return `${value.toFixed(value >= 10 || order === 0 ? 0 : 1)} ${units[order]}`;
 }
 
-export function toTimelineMedia(files: FileList | File[]) {
-  return Array.from(files).map((file) => ({
-    id: crypto.randomUUID(),
-    name: file.name,
-    size: file.size,
-    src: URL.createObjectURL(file),
-  }));
+function isHeicFile(file: File) {
+  if (file.type === "image/heic" || file.type === "image/heif") {
+    return true;
+  }
+  return /\.(heic|heif)$/i.test(file.name);
+}
+
+function isVideoFile(file: File) {
+  if (file.type.startsWith("video/")) {
+    return true;
+  }
+  return /\.(mov|mp4|m4v|webm)$/i.test(file.name);
+}
+
+async function probeVideoDuration(blobUrl: string): Promise<number> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    video.src = blobUrl;
+    video.onloadedmetadata = () => {
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      resolve(duration);
+    };
+    video.onerror = () => resolve(0);
+  });
+}
+
+type PreparedMedia = {
+  timeline: TimelineMedia;
+  uploadFile: File;
+};
+
+async function prepareFile(file: File): Promise<PreparedMedia> {
+  if (await isHeic(file).catch(() => isHeicFile(file))) {
+    const converted = await heicTo({
+      blob: file,
+      type: "image/jpeg",
+      quality: 0.9,
+    });
+    const jpegName = file.name.replace(/\.(heic|heif)$/i, ".jpg");
+    const jpegFile = new File([converted], jpegName, {
+      type: "image/jpeg",
+    });
+    return {
+      uploadFile: jpegFile,
+      timeline: {
+        id: crypto.randomUUID(),
+        name: jpegName,
+        size: jpegFile.size,
+        src: URL.createObjectURL(jpegFile),
+        kind: "image",
+      },
+    };
+  }
+
+  if (isVideoFile(file)) {
+    const src = URL.createObjectURL(file);
+    const durationSeconds = await probeVideoDuration(src);
+    return {
+      uploadFile: file,
+      timeline: {
+        id: crypto.randomUUID(),
+        name: file.name,
+        size: file.size,
+        src,
+        kind: "video",
+        durationSeconds,
+      },
+    };
+  }
+
+  return {
+    uploadFile: file,
+    timeline: {
+      id: crypto.randomUUID(),
+      name: file.name,
+      size: file.size,
+      src: URL.createObjectURL(file),
+      kind: "image",
+    },
+  };
 }
 
 export async function uploadFilesToSupabase(files: FileList | File[]) {
@@ -89,18 +169,19 @@ export async function uploadFilesToSupabase(files: FileList | File[]) {
 }
 
 export async function uploadFileArrayToSupabase(files: File[]) {
-  const timeline = toTimelineMedia(files);
+  const prepared = await Promise.all(files.map(prepareFile));
+  const timeline = prepared.map((p) => p.timeline);
 
   if (!supabase) {
     return timeline;
   }
 
   await Promise.all(
-    Array.from(files).map(async (file) => {
-      const key = `${Date.now()}-${crypto.randomUUID()}-${file.name}`;
+    prepared.map(async ({ uploadFile }) => {
+      const key = `${Date.now()}-${crypto.randomUUID()}-${uploadFile.name}`;
       const { error } = await supabase.storage
         .from(SUPABASE_BUCKET)
-        .upload(key, file, {
+        .upload(key, uploadFile, {
           cacheControl: "3600",
           upsert: false,
         });

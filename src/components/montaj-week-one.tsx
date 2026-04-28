@@ -6,9 +6,9 @@ import { SlideshowComposition } from "@/components/slideshow-composition";
 import {
   MUSIC_LIBRARY,
   type MusicTrack,
+  type TimelineMedia,
   formatBytes,
   getStorageStatus,
-  toTimelineMedia,
   uploadFilesToSupabase,
 } from "@/lib/media";
 
@@ -16,7 +16,7 @@ const FPS = 30;
 const SECONDS_PER_IMAGE = 1;
 
 export function MontajWeekOne() {
-  const [timeline, setTimeline] = useState<ReturnType<typeof toTimelineMedia>>([]);
+  const [timeline, setTimeline] = useState<TimelineMedia[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<MusicTrack>(MUSIC_LIBRARY[0]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -26,15 +26,27 @@ export function MontajWeekOne() {
       : "Supabase storage is not configured yet. Images will stay local in the browser for the Week 1 demo.",
   );
 
-  const durationInFrames = Math.max(
-    timeline.length * FPS * SECONDS_PER_IMAGE,
-    FPS * 5,
+  const totalDurationFrames = useMemo(
+    () =>
+      timeline.reduce((sum, item) => {
+        const seconds =
+          item.kind === "video" &&
+          item.durationSeconds &&
+          item.durationSeconds > 0
+            ? item.durationSeconds
+            : SECONDS_PER_IMAGE;
+        return sum + Math.max(1, Math.round(seconds * FPS));
+      }, 0),
+    [timeline],
   );
+  const durationInFrames = Math.max(totalDurationFrames, FPS * 5);
 
   const totalSize = useMemo(
     () => timeline.reduce((sum, item) => sum + item.size, 0),
     [timeline],
   );
+
+  const videoCount = timeline.filter((item) => item.kind === "video").length;
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) {
@@ -111,16 +123,16 @@ export function MontajWeekOne() {
           <section className="rounded-[28px] border border-[var(--line)] bg-[var(--panel)] p-6 shadow-[var(--shadow)]">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl">Upload photos</h2>
+                <h2 className="text-2xl">Upload photos & clips</h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Drag in JPG, PNG, or WebP images. Each photo gets one second on
-                  the Week 1 timeline.
+                  Drag in JPG, PNG, WebP, or HEIC photos and MOV/MP4 clips.
+                  Photos hold for one second; clips play their full length.
                 </p>
               </div>
               <label className="cursor-pointer rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)]">
                 Choose files
                 <input
-                  accept="image/png,image/jpeg,image/webp"
+                  accept="image/png,image/jpeg,image/webp,image/heic,image/heif,.heic,.heif,video/quicktime,video/mp4,.mov,.mp4,.m4v"
                   className="hidden"
                   multiple
                   type="file"
@@ -146,7 +158,7 @@ export function MontajWeekOne() {
                 void handleFiles(event.dataTransfer.files);
               }}
             >
-              <p className="text-lg">Drop travel photos here</p>
+              <p className="text-lg">Drop travel photos and clips here</p>
               <p className="mt-2 text-sm text-[var(--muted)]">
                 {isUploading
                   ? "Uploading..."
@@ -224,7 +236,9 @@ export function MontajWeekOne() {
               </p>
             </div>
             <div className="rounded-[24px] bg-[#f7f4ec] px-4 py-3 text-sm leading-6 text-[var(--muted)]">
-              <p>{timeline.length} images</p>
+              <p>
+                {timeline.length - videoCount} photos · {videoCount} clips
+              </p>
               <p>{formatBytes(totalSize)}</p>
             </div>
           </div>
@@ -249,6 +263,7 @@ export function MontajWeekOne() {
                           name: "Placeholder",
                           size: 0,
                           src: "/placeholder/postcard.svg",
+                          kind: "image" as const,
                         },
                       ],
                 soundtrackSrc: selectedTrack.src,
@@ -265,15 +280,29 @@ export function MontajWeekOne() {
                   key={item.id}
                   className="flex items-center gap-3 rounded-[22px] border border-[var(--line)] bg-white/60 p-3"
                 >
-                  <img
-                    alt={item.name}
-                    className="h-16 w-16 rounded-2xl object-cover"
-                    src={item.src}
-                  />
+                  {item.kind === "video" ? (
+                    <video
+                      className="h-16 w-16 rounded-2xl object-cover"
+                      src={item.src}
+                      muted
+                      playsInline
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img
+                      alt={item.name}
+                      className="h-16 w-16 rounded-2xl object-cover"
+                      src={item.src}
+                    />
+                  )}
                   <div className="min-w-0">
                     <p className="truncate text-sm">{item.name}</p>
                     <p className="text-xs text-[var(--muted)]">
-                      Slot {index + 1} · {formatBytes(item.size)}
+                      Slot {index + 1} ·{" "}
+                      {item.kind === "video" && item.durationSeconds
+                        ? `${item.durationSeconds.toFixed(1)}s clip · `
+                        : ""}
+                      {formatBytes(item.size)}
                     </p>
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 import {
   AbsoluteFill,
   Img,
+  OffthreadVideo,
   Sequence,
   staticFile,
   useCurrentFrame,
@@ -23,7 +24,26 @@ export function SlideshowComposition({
 }: SlideshowCompositionProps) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const framesPerImage = secondsPerImage * fps;
+
+  const slots = images.reduce<
+    {
+      item: TimelineMedia;
+      index: number;
+      startFrame: number;
+      frames: number;
+    }[]
+  >((acc, item, index) => {
+    const seconds =
+      item.kind === "video" && item.durationSeconds && item.durationSeconds > 0
+        ? item.durationSeconds
+        : secondsPerImage;
+    const frames = Math.max(1, Math.round(seconds * fps));
+    const startFrame = acc.length > 0
+      ? acc[acc.length - 1].startFrame + acc[acc.length - 1].frames
+      : 0;
+    acc.push({ item, index, startFrame, frames });
+    return acc;
+  }, []);
 
   return (
     <AbsoluteFill
@@ -41,21 +61,15 @@ export function SlideshowComposition({
         }}
       />
 
-      {images.map((image, index) => {
-        const startFrame = index * framesPerImage;
+      {slots.map(({ item, index, startFrame, frames }) => {
         const progress = frame - startFrame;
-        const scale = interpolate(
-          progress,
-          [0, framesPerImage],
-          [1, 1.08],
-          {
-            extrapolateLeft: "clamp",
-            extrapolateRight: "clamp",
-          },
-        );
+        const scale = interpolate(progress, [0, frames], [1, 1.08], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
         const opacity = interpolate(
           progress,
-          [0, 8, framesPerImage - 8, framesPerImage],
+          [0, 8, frames - 8, frames],
           [0, 1, 1, 0],
           {
             extrapolateLeft: "clamp",
@@ -64,7 +78,11 @@ export function SlideshowComposition({
         );
 
         return (
-          <Sequence key={image.id} durationInFrames={framesPerImage} from={startFrame}>
+          <Sequence
+            key={item.id}
+            durationInFrames={frames}
+            from={startFrame}
+          >
             <AbsoluteFill
               style={{
                 alignItems: "center",
@@ -72,15 +90,28 @@ export function SlideshowComposition({
                 opacity,
               }}
             >
-              <Img
-                src={image.src}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  transform: `scale(${scale})`,
-                }}
-              />
+              {item.kind === "video" ? (
+                <OffthreadVideo
+                  src={item.src}
+                  muted
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    transform: `scale(${scale})`,
+                  }}
+                />
+              ) : (
+                <Img
+                  src={item.src}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    transform: `scale(${scale})`,
+                  }}
+                />
+              )}
               <div
                 style={{
                   position: "absolute",
