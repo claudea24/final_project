@@ -10,6 +10,9 @@ export type TimelineMedia = {
   src: string;
   kind: TimelineMediaKind;
   durationSeconds?: number;
+  caption?: string;
+  scene?: string;
+  qualityScore?: number;
 };
 
 export type MusicTrack = {

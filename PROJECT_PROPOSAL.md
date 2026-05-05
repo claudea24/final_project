@@ -90,6 +90,15 @@ The timeline editor UI is also a significant build — Remotion handles the rend
 
 **Demo:** "Photos now snap to the beat, AI picks and orders my best shots into a story, and each photo has a zoom or pan so it's not a static slideshow."
 
+**Status (end of Week 2):**
+- ✅ Web Audio beat detection (`src/lib/beats.ts`): decodes the soundtrack, computes a 10ms-hop energy onset envelope, picks tempo by autocorrelation in the 70–180 BPM band, and phase-aligns beats. Results are cached per track URL.
+- ✅ Beat-synced timing: `MontajWeekOne` runs detection on track change and feeds per-slot frame counts to `SlideshowComposition`. Photos snap to `beats × beatsPerSlot` (1–4, exposed as a slider); videos still play their full natural length.
+- ✅ BPM/beat count surfaced in the UI alongside a "Sync photos to beat" toggle so the un-synced fixed-1s timing remains available for comparison.
+- ✅ AI vision selection runs through Claude Code headless. `scripts/analyze.sh` builds the editor prompt from the photo paths and pipes it to `claude -p --json-schema ... --allowedTools Read --dangerously-skip-permissions`; `--system-prompt` overrides the default agent prompt to keep token usage tight. The server route `src/app/api/analyze/route.ts` decodes incoming data URLs into a temp dir, spawns the bash script, and parses the `structured_output` into `AnalysisResult { items, orderedIds, source }`. Verified end-to-end: `POST /api/analyze` returned `source: "claude"` with scene/qualityScore/caption per photo and a narrative `orderedIds` arc, ~24s round-trip on `haiku` for three photos.
+- ✅ Graceful fallback: any failure (missing `claude` binary, schema mismatch, non-zero exit) falls back to a heuristic ordering and surfaces the reason in the UI.
+- ⚠️ **Cost note:** each call writes ~30K cache tokens because Claude Code still loads tool descriptions and plugin metadata even with `--system-prompt`; `--bare` would skip that but only works with `ANTHROPIC_API_KEY` auth, not the OAuth subscription. Acceptable for the demo; for production this would move to the Anthropic SDK directly.
+- ⏸️ **Still deferred:** Live Supabase + Clerk provisioning (per-user storage isolation). The upload code paths remain "configured-or-fall-back-to-blob-URLs"; tracking this for the Week 4 polish window so the demo doesn't depend on cloud setup.
+
 ### Week 3 — Timeline editor + transitions (~25-30 hours)
 - Full drag-and-drop timeline with @dnd-kit (reorder, swap, adjust timing)
 - Transitions between clips (fade, slide, wipe)
@@ -97,6 +106,13 @@ The timeline editor UI is also a significant build — Remotion handles the rend
 - Editable caption UI if time allows
 
 **Demo:** "I can drag and drop to rearrange everything, the reel has smooth transitions and AI-generated captions."
+
+**Status (end of Week 3):**
+- ✅ Drag-and-drop timeline with `@dnd-kit/core` + `@dnd-kit/sortable`. Each row has a grab handle (4px activation distance so touch/click selection still works), persists captions and scene tags through reorders, and replaces the Week 1 ↑/↓ buttons.
+- ✅ Transitions between every slot via `@remotion/transitions`: cycles fade → slide → wipe, with each transition's overlap clamped to `min(prev, next, 12)` frames so short beats don't collapse the cut. Total `durationInFrames` is recomputed on the page so the Player's scrubber stays in sync.
+- ✅ AI captions: the same `/api/analyze` call returns 4–7 word caption suggestions per photo, rendered as a centered overlay inside `SlotContent` and editable per-slot via a row-level text input that flows back into the Remotion preview live.
+- ➕ **Beyond plan:** Aligned `remotion`, `@remotion/player`, and `@remotion/transitions` to the same minor (`4.0.457`) — the initial install left two `remotion` copies side-by-side which would have caused subtle context bugs at runtime.
+- 🧪 **Verification gap:** I haven't driven a real browser through the full upload → AI-pick → reorder → caption flow yet. Type-check (`tsc --noEmit`) and lint pass; the dev server compiles, `GET /` is 200, and `POST /api/analyze` returns 200 with the heuristic fallback when no API key is set. End-to-end click-through is the first thing on the Week 4 list.
 
 ### Week 4 — Audio options + AI refinement + export (~25-30 hours)
 - Support for uploading your own audio or pasting a URL (yt-dlp), with video-only export for URL-sourced audio
